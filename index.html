@@ -58,18 +58,21 @@ th.c{text-align:center}th.s2{font-weight:400;font-size:12px}th.x{cursor:default}
 <p class="mu s" id="base" style="margin:2px 0 0"></p></div>
 <button class="btn" id="upb">Atualizar dados</button></div>
 <div class="card up" id="up" hidden>
-<b>Atualizar dados a partir de planilha</b>
-<p class="mu s" style="margin:4px 0 8px">Escolha a planilha de itens vendidos (.xlsx ou .csv). Colunas necessárias: <span class="mo">Codigo, Item, Descricao, Data, Quantidade, Preço, Total, Ano, Nome_completo, Cd_centralizado, Grade</span>. Linhas com Grade preenchida são desconsideradas. A leitura acontece no seu computador; nada é enviado para a internet. Em CSV, os códigos precisam estar como texto (com os zeros à esquerda).</p>
-<label class="r"><input type="radio" name="um" value="replace" checked><span><b>Substituir toda a base</b> pelo conteúdo da planilha<br><span class="mu s">Use quando a planilha tem todo o histórico (ex.: “Itens vendidos de 2019 em diante”).</span></span></label>
-<label class="r"><input type="radio" name="um" value="merge"><span><b>Atualizar só os anos que estão na planilha</b><br><span class="mu s">Os anos presentes na planilha são trocados; os demais anos da base atual são mantidos.</span></span></label>
+<b>Atualizar dados</b>
+<p class="mu s" style="margin:4px 0 8px">Ao abrir este painel a página busca a versão mais recente da base no GitHub (arquivo gerado automaticamente todo dia pelo n8n).</p>
+<div class="row" style="margin-top:0"><button class="btn pri" id="gh">Buscar de novo no GitHub</button></div>
+<p class="s" id="pm" style="margin:8px 0 0"></p>
+<details style="margin-top:12px"><summary class="mu s" style="cursor:pointer">Importar de uma planilha (opcional)</summary>
+<p class="mu s" style="margin:8px 0">Escolha a planilha de itens vendidos (.xlsx ou .csv). Colunas necessárias: <span class="mo">Codigo, Item, Descricao, Data, Quantidade, Preço, Total, Ano, Nome_completo, Cd_centralizado, Grade</span>. Linhas com Grade preenchida são desconsideradas. A leitura acontece no seu computador; nada é enviado para a internet. Em CSV, os códigos precisam estar como texto (com os zeros à esquerda).</p>
+<label class="r"><input type="radio" name="um" value="replace" checked><span><b>Substituir toda a base</b> pelo conteúdo da planilha</span></label>
+<label class="r"><input type="radio" name="um" value="merge"><span><b>Atualizar só os anos que estão na planilha</b> (mantém os demais anos)</span></label>
 <div class="row"><input type="file" id="fi" accept=".xlsx,.xlsm,.csv,.txt"></div>
 <progress id="pg" max="100" value="0" hidden></progress>
-<p class="s" id="pm" style="margin:8px 0 0"></p>
 <div id="pr" hidden>
 <div class="row"><button class="btn pri" id="ap">Aplicar atualização</button><button class="btn" id="cn">Cancelar</button></div></div>
-<div class="row"><button class="btn" id="rs" hidden>Restaurar base original</button></div>
-</div>
-<div class="card ctl">
+<div class="row"><button class="btn" id="rs" hidden>Remover base salva neste navegador</button></div>
+</details>
+</div><div class="card ctl">
 <div class="seg"><button id="m-cli" class="on">Cliente</button><button id="m-cen">Centralizadora</button></div>
 <div class="sb"><input id="q" type="search" autocomplete="off" disabled placeholder="Digite o código ou parte do nome do cliente"><div class="dd" id="dd" hidden></div></div>
 </div>
@@ -100,9 +103,11 @@ const idbDel=async k=>{const db=await idb();return new Promise((res,rej)=>{const
 async function embedded(){const bin=atob($('d').textContent.trim()),u=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);
 const d=await gunz(new Blob([u]));d.src={orig:true};return d}
 const tsOf=x=>x&&x.geradoEm?Date.parse(x.geradoEm):0;
+const remoteUrl=()=>/^https?:$/.test(location.protocol)?'dados/base.json':'https://joseluisgottschalk.github.io/mix-cliente/dados/base.json';
+async function buscarRemoto(){const r=await fetch(remoteUrl(),{cache:'no-cache'});if(!r.ok)throw new Error('HTTP '+r.status);const d=await r.json();d.src={remote:true,at:d.geradoEm?new Date(d.geradoEm).toLocaleString('pt-BR'):''};return d}
 async function carregar(){let loc=null,rm=null;
 try{const s=await idbGet('base');if(s&&s.blob)loc=await gunz(s.blob)}catch(e){}
-if(/^https?:$/.test(location.protocol)){try{const r=await fetch('dados/base.json',{cache:'no-cache'});if(r.ok){rm=await r.json();rm.src={remote:true,at:rm.geradoEm?new Date(rm.geradoEm).toLocaleString('pt-BR'):''}}}catch(e){}}
+try{rm=await buscarRemoto()}catch(e){}
 D=[rm,loc].filter(Boolean).sort((x,y)=>tsOf(y)-tsOf(x))[0]||await embedded();init()}
 carregar().catch(e=>{$('st').textContent='Não foi possível carregar os dados: '+e.message});
 //@@IMPORT-START
@@ -284,7 +289,13 @@ else{const csv='﻿'+[hd,...rows].map(r=>r.map(v=>v==null?'':typeof v==='number'
 const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download=fn+'.csv';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1e4)}};
 /* ---------- atualização de dados ---------- */
 const setPm=(t,err)=>{$('pm').textContent=t;$('pm').className='s'+(err?' err':'')};
-$('upb').onclick=()=>{$('up').hidden=!$('up').hidden};
+async function atualizarGithub(){if(busy)return;busy=true;$('gh').disabled=true;$('fi').disabled=true;setPm('Buscando a versão mais recente no GitHub…');
+try{const d=await buscarRemoto(),mudou=!D.src||!D.src.remote||D.geradoEm!==d.geradoEm;try{await idbDel('base')}catch(e){}D=d;init();
+setPm(mudou?`Base atualizada a partir do GitHub (gerada em ${d.src.at}) · ${nf.format(d.clients.length)} clientes · notas até ${d.gen}.`:`Já está na versão mais recente do GitHub (gerada em ${d.src.at}).`)}
+catch(e){setPm('Não foi possível buscar no GitHub: '+(e.message||e)+'. Confira se dados/base.json existe no repositório e se o GitHub Pages está ativo.',true)}
+busy=false;$('gh').disabled=false;$('fi').disabled=false}
+$('upb').onclick=()=>{if($('up').hidden){$('up').hidden=false;atualizarGithub()}else $('up').hidden=true};
+$('gh').onclick=atualizarGithub;
 function resetUp(){pend=null;$('pr').hidden=true;$('pg').hidden=true;$('fi').value='';$('fi').disabled=false;busy=false}
 $('fi').onchange=async e=>{const f=e.target.files[0];if(!f)return;busy=true;pend=null;$('pr').hidden=true;$('fi').disabled=true;$('pg').hidden=false;$('pg').value=0;setPm('Lendo a planilha…');
 try{const t0=Date.now(),a=await importFile(f,(p,n)=>{$('pg').value=p*100;setPm(`Lendo a planilha… ${Math.floor(p*100)}% · ${nf.format(n)} linhas`)});

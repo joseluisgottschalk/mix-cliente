@@ -262,8 +262,8 @@ $('kpi').innerHTML=[['Itens distintos',nf.format(its.size)],['Quantidade comprad
 if(sort.k[0]==='T'&&!yrs.includes(+sort.k.slice(1)))sort={k:'t',d:-1};const g=sort.k[0]==='T'?o=>(o.y[+sort.k.slice(1)]||{t:0}).t:G[sort.k];out.sort((x,y)=>{const a=g(x),b=g(y);return(typeof a==='string'?a.localeCompare(b,'pt-BR'):a-b)*sort.d||y.t-x.t});
 const ar=k=>sort.k===k?(sort.d>0?' ▲':' ▼'):'',two=yrs.length>1;
 const th=[...(byC?[['cl','Cliente']]:[]),['ic','Código'],['id','Item']].map(c=>`<th rowspan="2" data-k="${c[0]}">${c[1]}${ar(c[0])}</th>`).join('')+yrs.map(y=>`<th colspan="3" class="g c" data-k="T${y}">${y}${ar('T'+y)}</th>`).join('')+(two?'<th colspan="3" class="g c x">Total geral</th>':'');
-const th2=yrs.map(()=>'<th class="n s2 x g">Qtd.</th><th class="n s2 x">Total (R$)</th><th class="n s2 x">Unit. (R$)</th>').join('')+(two?`<th class="n s2 g" data-k="q">Qtd.${ar('q')}</th><th class="n s2" data-k="t">Total (R$)${ar('t')}</th><th class="n s2" data-k="p">Unit. (R$)${ar('p')}</th>`:'');
-const cell=z=>z?`<td class="n g">${nf.format(z.q)}</td><td class="n">${cf.format(z.t/100)}</td><td class="n" title="mín ${uf.format(z.a/1e5)} · máx ${uf.format(z.b/1e5)}">${uf.format(z.t/100/z.q)}</td>`:'<td class="n mu g">–</td><td class="n mu">–</td><td class="n mu">–</td>';
+const th2=yrs.map(()=>'<th class="n s2 x g">Quantidade</th><th class="n s2 x">Preço unit. (R$)</th><th class="n s2 x">Total (R$)</th>').join('')+(two?`<th class="n s2 g" data-k="q">Quantidade${ar('q')}</th><th class="n s2" data-k="p">Preço unit. (R$)${ar('p')}</th><th class="n s2" data-k="t">Total (R$)${ar('t')}</th>`:'');
+const cell=z=>z?`<td class="n g">${nf.format(z.q)}</td><td class="n" title="mín ${uf.format(z.a/1e5)} · máx ${uf.format(z.b/1e5)}">${uf.format(z.t/100/z.q)}</td><td class="n">${cf.format(z.t/100)}</td>`:'<td class="n mu g">–</td><td class="n mu">–</td><td class="n mu">–</td>';
 const rows=out.slice(0,shown).map(o=>{const cl=D.clients[o.c];
 return `<tr>${byC?`<td>${esc(cl[1])} <span class="mu s">${cl[0]}</span></td>`:''}<td class="mo">${D.items[o.i][0]}</td><td>${esc(D.items[o.i][1])}</td>${yrs.map(y=>cell(o.y[y])).join('')}${two?cell(o):''}</tr>`}).join('');
 $('tb').innerHTML=out.length?`<table><thead><tr>${th}</tr><tr>${th2}</tr></thead><tbody>${rows}</tbody></table>`+(out.length>shown?`<button class="more" id="more">Mostrar mais (${nf.format(out.length-shown)} restantes)</button>`:''):'<p class="mu" style="padding:12px 14px">Nenhum item encontrado para os filtros.</p>'}
@@ -277,13 +277,13 @@ $('cons').onchange=()=>{shown=300;refresh()};$('yc').onclick=e=>{const b=e.targe
 $('info').addEventListener('click',e=>{const a=e.target.closest('a[data-go]');if(a){e.preventDefault();setMode('cen');pick(+a.dataset.go)}});
 $('tb').addEventListener('click',e=>{const h=e.target.closest('th[data-k]');if(h){const k=h.dataset.k;sort=sort.k===k?{k,d:-sort.d}:{k,d:/^(T\d|q$|t$|p$)/.test(k)?-1:1};render();return}if(e.target.id==='more'){shown+=500;render()}});
 
-$('xl').onclick=()=>{const byC=mode==='cen'&&!$('cons').checked,hd=[...(byC?['Cód. cliente','Cliente']:[]),'Código item','Item',...yrs.flatMap(y=>[`Qtd. ${y}`,`Total ${y} (R$)`,`Valor unit. ${y} (R$)`]),...(yrs.length>1?['Qtd. total','Total geral (R$)','Valor unit. médio (R$)']:[])];
-const tr=z=>z?[z.q,z.t/100,z.t/100/z.q]:[null,null,null];
+$('xl').onclick=()=>{const byC=mode==='cen'&&!$('cons').checked,hd=[...(byC?['Cód. cliente','Cliente']:[]),'Código item','Item',...yrs.flatMap(y=>[`Quantidade ${y}`,`Preço unit. ${y} (R$)`,`Total ${y} (R$)`]),...(yrs.length>1?['Quantidade total','Preço unit. médio (R$)','Total geral (R$)']:[])];
+const tr=z=>z?[z.q,z.t/100/z.q,z.t/100]:[null,null,null];
 const rows=out.map(o=>{const cl=D.clients[o.c],it=D.items[o.i];return[...(byC?[cl[0],cl[1]]:[]),it[0],it[1],...yrs.flatMap(y=>tr(o.y[y])),...(yrs.length>1?tr(o):[])]});
 const x=mode==='cli'?D.clients[sel]:D.cen[sel],fn=`mix_${mode==='cli'?'cliente':'centralizadora'}_${x[0]}`;
 if(window.XLSX){const ws=XLSX.utils.aoa_to_sheet([hd,...rows]),wb=XLSX.utils.book_new(),fx=byC?4:2;
 ws['!cols']=hd.map(h=>({wch:h==='Item'?48:h==='Cliente'?36:15}));
-rows.forEach((_,r)=>hd.slice(fx).forEach((_,j)=>{const c=ws[XLSX.utils.encode_cell({r:r+1,c:fx+j})];if(c)c.z=['#,##0','#,##0.00','#,##0.0000'][j%3]}));
+rows.forEach((_,r)=>hd.slice(fx).forEach((_,j)=>{const c=ws[XLSX.utils.encode_cell({r:r+1,c:fx+j})];if(c)c.z=['#,##0','#,##0.0000','#,##0.00'][j%3]}));
 XLSX.utils.book_append_sheet(wb,ws,'Mix');XLSX.writeFile(wb,fn+'.xlsx')}
 else{const csv='﻿'+[hd,...rows].map(r=>r.map(v=>v==null?'':typeof v==='number'?String(v).replace('.',','):'"'+String(v).replace(/"/g,'""')+'"').join(';')).join('\r\n');
 const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download=fn+'.csv';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1e4)}};
